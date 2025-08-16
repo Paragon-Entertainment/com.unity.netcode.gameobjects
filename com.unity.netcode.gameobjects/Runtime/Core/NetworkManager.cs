@@ -173,6 +173,8 @@ namespace Unity.Netcode
             internal set => ConnectionManager.LocalClient.IsApproved = value;
         }
 
+        public event Action OnBeginShutdown;
+
         /// <summary>
         /// The callback to invoke if the <see cref="NetworkTransport"/> fails.
         /// </summary>
@@ -537,8 +539,6 @@ namespace Unity.Netcode
         private void Awake()
         {
             NetworkConfig?.InitializePrefabs();
-
-            UnityEngine.SceneManagement.SceneManager.sceneUnloaded += OnSceneUnloaded;
         }
 
         private void OnEnable()
@@ -951,17 +951,22 @@ namespace Unity.Netcode
             }
         }
 
-        // Ensures that the NetworkManager is cleaned up before OnDestroy is run on NetworkObjects and NetworkBehaviours when unloading a scene with a NetworkManager
-        private void OnSceneUnloaded(Scene scene)
+        public void OnFinalize()
         {
-            if (gameObject != null && scene == gameObject.scene)
+            m_ShuttingDown = true;
+
+            ShutdownInternal();
+
+            if (Singleton == this)
             {
-                OnDestroy();
+                Singleton = null;
             }
         }
 
         internal void ShutdownInternal()
         {
+            OnBeginShutdown?.Invoke();
+
             if (NetworkLog.CurrentLogLevel <= LogLevel.Developer)
             {
                 NetworkLog.LogInfo(nameof(ShutdownInternal));
@@ -1030,27 +1035,6 @@ namespace Unity.Netcode
             // can unsubscribe from tick updates and such.
             NetworkTimeSystem?.Shutdown();
             NetworkTickSystem = null;
-        }
-
-        // Ensures that the NetworkManager is cleaned up before OnDestroy is run on NetworkObjects and NetworkBehaviours when quitting the application.
-        private void OnApplicationQuit()
-        {
-            // Make sure ShutdownInProgress returns true during this time
-            m_ShuttingDown = true;
-            OnDestroy();
-        }
-
-        // Note that this gets also called manually by OnSceneUnloaded and OnApplicationQuit
-        private void OnDestroy()
-        {
-            ShutdownInternal();
-
-            UnityEngine.SceneManagement.SceneManager.sceneUnloaded -= OnSceneUnloaded;
-
-            if (Singleton == this)
-            {
-                Singleton = null;
-            }
         }
     }
 }

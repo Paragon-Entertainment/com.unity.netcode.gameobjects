@@ -470,7 +470,7 @@ namespace Unity.Netcode
                             else
                             {
                                 // Clients just disconnect immediately
-                                ShutdownInternal();
+                                ShutdownInternal(m_ShutdownReason);
                             }
                         }
                     }
@@ -539,7 +539,7 @@ namespace Unity.Netcode
                 case ServerShutdownStates.InternalShutdown:
                     {
                         ServerShutdownState = ServerShutdownStates.ShuttingDown;
-                        ShutdownInternal();
+                        ShutdownInternal(m_ShutdownReason);
                         break;
                     }
             }
@@ -804,6 +804,7 @@ namespace Unity.Netcode
         public bool ShutdownInProgress => m_ShuttingDown;
 
         private bool m_ShuttingDown;
+        private ShutdownReason m_ShutdownReason;
 
         /// <summary>
         /// The current netcode project configuration
@@ -849,6 +850,11 @@ namespace Unity.Netcode
         /// The callback to invoke once the local client is ready
         /// </summary>
         public event Action OnClientStarted = null;
+
+        /// <summary>
+        /// Similar to OnPreShutdown but provides ShutdownReason and used by Paragon systems.
+        /// </summary>
+        public event Action<ShutdownReason> OnParagonBeginShutdown;
 
         /// <summary>
         /// Subscribe to this event to get notifications before a <see cref="NetworkManager"/> instance is being destroyed.
@@ -1004,7 +1010,6 @@ namespace Unity.Netcode
         {
             NetworkConfig?.InitializePrefabs();
 
-            UnityEngine.SceneManagement.SceneManager.sceneUnloaded += OnSceneUnloaded;
 #if UNITY_EDITOR
             EditorApplication.playModeStateChanged += ModeChanged;
 #endif
@@ -1505,7 +1510,7 @@ namespace Unity.Netcode
         /// If true, NetworkManager will shut down immediately, and any unprocessed or unsent messages
         /// will be discarded.
         /// </param>
-        public void Shutdown(bool discardMessageQueue = false)
+        public void Shutdown(bool discardMessageQueue = false, ShutdownReason reason = ShutdownReason.Unknown)
         {
             if (NetworkLog.CurrentLogLevel <= LogLevel.Developer)
             {
@@ -1517,6 +1522,8 @@ namespace Unity.Netcode
             if (IsServer || IsClient)
             {
                 m_ShuttingDown = true;
+                m_ShutdownReason = reason;
+
                 if (MessageManager != null)
                 {
                     MessageManager.StopProcessing = discardMessageQueue;
@@ -1524,17 +1531,28 @@ namespace Unity.Netcode
             }
         }
 
-        // Ensures that the NetworkManager is cleaned up before OnDestroy is run on NetworkObjects and NetworkBehaviours when unloading a scene with a NetworkManager
-        private void OnSceneUnloaded(Scene scene)
+        public void OnFinalize()
         {
-            if (gameObject != null && scene == gameObject.scene)
+            m_ShuttingDown = true;
+
+            ShutdownInternal(ShutdownReason.ApplicationQuit);
+
+            if (Singleton == this)
             {
-                OnDestroy();
+                Singleton = null;
             }
+
+            OnDestroying?.Invoke(this);
+
+#if UNITY_EDITOR
+            EditorApplication.playModeStateChanged -= ModeChanged;
+#endif
         }
 
-        internal void ShutdownInternal()
+        internal void ShutdownInternal(ShutdownReason reason = ShutdownReason.Unknown)
         {
+            OnParagonBeginShutdown?.Invoke(reason);
+
 #if UNITY_EDITOR
             EndNetworkSession();
 #endif
@@ -1629,35 +1647,6 @@ namespace Unity.Netcode
             // can unsubscribe from tick updates and such.
             NetworkTimeSystem?.Shutdown();
             NetworkTickSystem = null;
-        }
-
-
-        // Ensures that the NetworkManager is cleaned up before OnDestroy is run on NetworkObjects and NetworkBehaviours when quitting the application.
-        private void OnApplicationQuit()
-        {
-            // Make sure ShutdownInProgress returns true during this time
-            m_ShuttingDown = true;
-            OnDestroy();
-        }
-
-        // Note that this gets also called manually by OnSceneUnloaded and OnApplicationQuit
-        private void OnDestroy()
-        {
-            ShutdownInternal();
-
-            UnityEngine.SceneManagement.SceneManager.sceneUnloaded -= OnSceneUnloaded;
-
-            // Notify we are destroying NetworkManager
-            OnDestroying?.Invoke(this);
-
-            if (Singleton == this)
-            {
-                Singleton = null;
-            }
-
-#if UNITY_EDITOR
-            EditorApplication.playModeStateChanged -= ModeChanged;
-#endif
         }
 
         // Command line options
@@ -1824,7 +1813,7 @@ namespace Unity.Netcode
             {
                 if (IsListening)
                 {
-                    OnApplicationQuit();
+                    OnFinalize();
                 }
             }
             try

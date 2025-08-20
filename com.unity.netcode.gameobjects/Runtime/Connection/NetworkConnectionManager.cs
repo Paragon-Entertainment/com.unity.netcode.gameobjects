@@ -371,7 +371,7 @@ namespace Unity.Netcode
             else
             {
                 // We must pass true here and not process any sends messages as we are no longer connected and thus there is no one to send any messages to and this will cause an exception within UnityTransport as the client ID is no longer valid.
-                NetworkManager.Shutdown(true);
+                NetworkManager.Shutdown(true, ShutdownReason.DisconnectEvent);
             }
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             s_TransportDisconnect.End();
@@ -392,12 +392,12 @@ namespace Unity.Netcode
             if (duringStart)
             {
                 LocalClient.SetRole(false, false);
-                NetworkManager.ShutdownInternal();
+                NetworkManager.ShutdownInternal(ShutdownReason.TransportFailure);
             }
             else
             {
                 // Otherwise, stop processing messages and shutdown the normal way
-                NetworkManager.Shutdown(true);
+                NetworkManager.Shutdown(true, ShutdownReason.TransportFailure);
             }
         }
 
@@ -502,7 +502,8 @@ namespace Unity.Netcode
                 }
                 else
                 {
-                    NetworkManager.Shutdown(true);
+                    var shutdownReason = timedOut ? ShutdownReason.ConnectionTimedOut : ShutdownReason.ConnectionNotApproved;
+                    NetworkManager.Shutdown(true, shutdownReason);
                 }
             }
         }

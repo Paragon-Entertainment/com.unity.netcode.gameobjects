@@ -329,7 +329,7 @@ namespace Unity.Netcode.Editor
 
                 if (GUILayout.Button(new GUIContent("Stop " + instanceType, "Stops the " + instanceType + " instance.")))
                 {
-                    m_NetworkManager.Shutdown();
+                    m_NetworkManager.Shutdown(false, ShutdownReason.UserDisconnect);
                 }
             }
         }

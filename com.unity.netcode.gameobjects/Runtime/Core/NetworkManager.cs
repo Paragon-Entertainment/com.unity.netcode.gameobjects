@@ -67,7 +67,7 @@ namespace Unity.Netcode
 
                         if (m_ShuttingDown)
                         {
-                            ShutdownInternal();
+                            ShutdownInternal(m_ShutdownReason);
                         }
                     }
                     break;
@@ -173,7 +173,7 @@ namespace Unity.Netcode
             internal set => ConnectionManager.LocalClient.IsApproved = value;
         }
 
-        public event Action OnBeginShutdown;
+        public event Action<ShutdownReason> OnBeginShutdown;
 
         /// <summary>
         /// The callback to invoke if the <see cref="NetworkTransport"/> fails.
@@ -293,6 +293,7 @@ namespace Unity.Netcode
         public bool ShutdownInProgress => m_ShuttingDown;
 
         private bool m_ShuttingDown;
+        private ShutdownReason m_ShutdownReason;
 
         /// <summary>
         /// The current netcode project configuration
@@ -927,7 +928,7 @@ namespace Unity.Netcode
         /// If true, NetworkManager will shut down immediately, and any unprocessed or unsent messages
         /// will be discarded.
         /// </param>
-        public void Shutdown(bool discardMessageQueue = false)
+        public void Shutdown(bool discardMessageQueue = false, ShutdownReason reason = ShutdownReason.Unknown)
         {
             if (NetworkLog.CurrentLogLevel <= LogLevel.Developer)
             {
@@ -938,6 +939,7 @@ namespace Unity.Netcode
             // shutdown the next time the manager is started.
             if (IsServer || IsClient)
             {
+                m_ShutdownReason = reason;
                 m_ShuttingDown = true;
                 if (MessageManager != null)
                 {
@@ -955,7 +957,7 @@ namespace Unity.Netcode
         {
             m_ShuttingDown = true;
 
-            ShutdownInternal();
+            ShutdownInternal(ShutdownReason.ApplicationQuit);
 
             if (Singleton == this)
             {
@@ -963,9 +965,9 @@ namespace Unity.Netcode
             }
         }
 
-        internal void ShutdownInternal()
+        internal void ShutdownInternal(ShutdownReason reason)
         {
-            OnBeginShutdown?.Invoke();
+            OnBeginShutdown?.Invoke(reason);
 
             if (NetworkLog.CurrentLogLevel <= LogLevel.Developer)
             {

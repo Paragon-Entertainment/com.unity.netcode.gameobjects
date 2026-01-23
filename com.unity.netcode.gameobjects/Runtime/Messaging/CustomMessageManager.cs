@@ -78,6 +78,7 @@ namespace Unity.Netcode
                 else if (clientIds.Count == 1)
                 {
                     SendUnnamedMessage(clientIds[0], messageBuffer, networkDelivery);
+                    return;
                 }
             }
             else if (m_NetworkManager.DistributedAuthorityMode && !m_NetworkManager.DAHost)

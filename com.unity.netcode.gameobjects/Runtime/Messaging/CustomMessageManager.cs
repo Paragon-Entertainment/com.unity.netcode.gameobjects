@@ -98,6 +98,21 @@ namespace Unity.Netcode
 
             ValidateMessageSize(messageBuffer, networkDelivery, isNamed: false);
 
+            var message = new UnnamedMessage
+            {
+                SendData = messageBuffer
+            };
+
+            var size = m_NetworkManager.ConnectionManager.SendMessage(ref message, networkDelivery, clientIds);
+
+            // This if block was before SendMessage
+            // It's moved here so that the message order is correct. Otherwise this happens:
+            // - Host calls send message
+            // - InvokeUnnamedMessage is called before sending the message to clients
+            // - host's client-side message handler makes a request to the server (original message still is not sent to clients)
+            // - server receives the request and calls send message again (original message still is not sent to clients)
+            // - second message is sent
+            // - first message is sent
             if (m_NetworkManager.IsHost)
             {
                 for (var i = 0; i < clientIds.Count; ++i)
@@ -112,11 +127,6 @@ namespace Unity.Netcode
                     }
                 }
             }
-            var message = new UnnamedMessage
-            {
-                SendData = messageBuffer
-            };
-            var size = m_NetworkManager.ConnectionManager.SendMessage(ref message, networkDelivery, clientIds);
 
             // Size is zero if we were only sending the message to ourself in which case it isn't sent.
             if (size != 0)

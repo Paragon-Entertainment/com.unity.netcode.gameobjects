@@ -1741,40 +1741,6 @@ namespace Unity.Netcode
             OnStopped?.Invoke();
         }
 
-        // Command line options
-        private const string k_OverridePortArg = "-port";
-
-        private string GetArg(string[] commandLineArgs, string arg)
-        {
-            var argIndex = Array.IndexOf(commandLineArgs, arg);
-            if (argIndex >= 0 && argIndex < commandLineArgs.Length - 1)
-            {
-                return commandLineArgs[argIndex + 1];
-            }
-
-            return null;
-        }
-
-        private void ParseArg<T>(string arg, ref Override<T> value)
-        {
-            if (GetArg(Environment.GetCommandLineArgs(), arg) is string argValue)
-            {
-                value.Value = (T)Convert.ChangeType(argValue, typeof(T));
-            }
-        }
-
-        private void ParseCommandLineOptions()
-        {
-#if UNITY_SERVER && UNITY_DEDICATED_SERVER_ARGUMENTS_PRESENT
-            if ( UnityEngine.DedicatedServer.Arguments.Port != null)
-            {
-                PortOverride.Value = (ushort)UnityEngine.DedicatedServer.Arguments.Port;
-            }
-#else
-            ParseArg(k_OverridePortArg, ref PortOverride);
-#endif
-        }
-
 #if UNITY_EDITOR
         internal static INetworkManagerHelper NetworkManagerHelper;
 
